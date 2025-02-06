@@ -48,6 +48,28 @@ const llgRewardContractABI = require("../../utils/llg-reward-contract-abi.json")
 
 
 export default class Scene extends Component {
+
+    constructor(props) {
+        super(props);
+        this.movePiece = this.movePiece.bind(this); // Привязываем метод
+    }
+
+    // Метод для перемещения фигур
+    movePiece(piece, rowIndex, colIndex) {
+        const position = getMeshPosition(rowIndex, colIndex);
+        piece.rowIndex = rowIndex;
+        piece.colIndex = colIndex;
+        piece.mesh.position.y = position.y;
+
+        piece.moveAnim = {
+            target: position,
+            speed: {
+                x: (position.x - piece.mesh.position.x) / pieceMoveSpeed,
+                z: (position.z - piece.mesh.position.z) / pieceMoveSpeed,
+            },
+        };
+    }
+
     componentDidMount() {
         // TODO : component state implementation
         this.setState({
@@ -707,23 +729,6 @@ export default class Scene extends Component {
         }
         this.aiMoveAction = aiMoveAction;
 
-        var movePiece = ( piece, rowIndex, colIndex ) => {
-            piece.rowIndex = rowIndex;
-            piece.colIndex = colIndex;
-
-            const position = getMeshPosition(rowIndex, colIndex);
-
-            piece.mesh.position.y = position.y;
-            
-            piece.moveAnim = {
-                target: position,
-                speed: {
-                    x: (position.x - piece.mesh.position.x) / pieceMoveSpeed,
-                    z: (position.z - piece.mesh.position.z) / pieceMoveSpeed,
-                }
-            }
-        }
-        this.movePiece = movePiece;
 
         var performMove = (moveResult) => {
             const from = Object.keys(moveResult)[0];
@@ -744,7 +749,7 @@ export default class Scene extends Component {
             const fromIndex = this.boardPiecesArray.findIndex((item) => item.rowIndex === fromMatrixIndex.rowIndex && item.colIndex === fromMatrixIndex.colIndex );
 
             if( fromIndex !== -1 ) {
-                movePiece( this.boardPiecesArray[fromIndex], toMatrixIndex.rowIndex, toMatrixIndex.colIndex );
+                this.movePiece( this.boardPiecesArray[fromIndex], toMatrixIndex.rowIndex, toMatrixIndex.colIndex );
             }
 
 
@@ -755,27 +760,27 @@ export default class Scene extends Component {
                     const rook = this.boardPiecesArray.filter((item) => item.rowIndex === matrixIndex.rowIndex && item.colIndex === matrixIndex.colIndex);
                     const targetIndex = getMatrixIndexFromFen('D1');
 
-                    movePiece( rook[0], targetIndex.rowIndex, targetIndex.colIndex );
+                    this.movePiece( rook[0], targetIndex.rowIndex, targetIndex.colIndex );
                 } else if( this.boardPiecesArray[fromIndex].pieceType === 'K' && to === 'G1' && this.props.game.board.configuration.castling.whiteShort ) {
                     const matrixIndex = getMatrixIndexFromFen('H1');
                     const rook = this.boardPiecesArray.filter((item) => item.rowIndex === matrixIndex.rowIndex && item.colIndex === matrixIndex.colIndex);
                     const targetIndex = getMatrixIndexFromFen('F1');
-                    
-                    movePiece( rook[0], targetIndex.rowIndex, targetIndex.colIndex );
+
+                    this.movePiece( rook[0], targetIndex.rowIndex, targetIndex.colIndex );
                 }
             } else if( this.props.game.board.configuration.turn === 'black' ) {
                 if( this.boardPiecesArray[fromIndex].pieceType === 'k' && to === 'C8' && this.props.game.board.configuration.castling.blackLong ) {
                     const matrixIndex = getMatrixIndexFromFen('A8');
                     const rook = this.boardPiecesArray.filter((item) => item.rowIndex === matrixIndex.rowIndex && item.colIndex === matrixIndex.colIndex);
                     const targetIndex = getMatrixIndexFromFen('D8');
-                    
-                    movePiece( rook[0], targetIndex.rowIndex, targetIndex.colIndex );
+
+                    this.movePiece( rook[0], targetIndex.rowIndex, targetIndex.colIndex );
                 } else if( this.boardPiecesArray[fromIndex].pieceType === 'k' && to === 'G8' && this.props.game.board.configuration.castling.blackShort ) {
                     const matrixIndex = getMatrixIndexFromFen('H8');
                     const rook = this.boardPiecesArray.filter((item) => item.rowIndex === matrixIndex.rowIndex && item.colIndex === matrixIndex.colIndex);
                     const targetIndex = getMatrixIndexFromFen('F8');
-                    
-                    movePiece( rook[0], targetIndex.rowIndex, targetIndex.colIndex );
+
+                    this.movePiece( rook[0], targetIndex.rowIndex, targetIndex.colIndex );
                 }
             }
 
@@ -1043,12 +1048,14 @@ export default class Scene extends Component {
     }
 
     connectWalletPressed = async () => {
-        let walletResponse = await connectWallet();
-        this.setState({
-            status: walletResponse.status,
-            wallet: walletResponse.address,
-        })
-    }
+        try {
+            const { address, status } = await connectWallet();
+            this.setState({ status, wallet: address });
+        } catch (error) {
+            console.error("Wallet connection error:", error.message);
+            this.setState({ status: "Error connecting wallet. Please try again." });
+        }
+    };
 
     makeDeposit = async (roomId) => {
         let llgContract = getContractWithSigner(llgContractAddress, llgContractABI);
@@ -1407,34 +1414,19 @@ export default class Scene extends Component {
     }
 
     startNewTimer() {
-        if( this.timeInterval )
-            clearInterval( this.timeInterval );
-        
-        this.setState({
-            remainingTime: timeLimit
-        })
+        if (this.timeInterval) clearInterval(this.timeInterval);
 
-        const self = this;
+        this.setState({ remainingTime: timeLimit });
+
         this.timeInterval = setInterval(() => {
-            const currentRemaining = self.state.remainingTime;
-
-            if( currentRemaining === 0 && !this.checkIfFinished() && !this.state.pawnTransProps) {
-
-                const result = aiMove(self.props.game.board.configuration, 0);
-
-                self.performMove(result);
-
-                if( this.selectedPiece ) {
-                    this.selectedPiece.mesh.position.y = this.selectedPiece.currentY;
-                    this.selectedPiece = null;
-                }
-                self.aiMoveAction(self.props.aiLevel);
+            if (this.state.remainingTime === 0 && !this.checkIfFinished() && !this.state.pawnTransProps) {
+                const result = aiMove(this.props.game.board.configuration, 0);
+                this.performMove(result);
+                this.aiMoveAction(this.props.aiLevel);
                 return;
             }
 
-            self.setState({
-                remainingTime: currentRemaining - 1
-            })
+            this.setState((prevState) => ({ remainingTime: prevState.remainingTime - 1 }));
         }, 1000);
     }
 

@@ -53,7 +53,7 @@ export const connectWallet = async () => {
       address: "",
       status: (
         <span>
-          <p>
+          <p className="warning">
             {" "}
             🦊{" "}
             {/* <a target="_blank" href={`https://metamask.io/download.html`}> */}
@@ -98,7 +98,7 @@ export const getCurrentWalletConnected = async () => {
       address: "",
       status: (
         <span>
-          <p>
+          <p className="warning">
             {" "}
             🦊{" "}
             {/* <a target="_blank" href={`https://metamask.io/download.html`}> */}
